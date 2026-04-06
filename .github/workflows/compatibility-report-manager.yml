@@ -1,0 +1,157 @@
+name: Compatibility Report Manager
+
+on:
+  issues:
+    types: [opened] #, edited]
+#  issue_comment:
+#    types: created #, edited]
+  pull_request:    # Yes, someone actually did this;
+    types: opened  # https://github.com/xenia-project/game-compatibility/pull/1501
+
+jobs:
+  compatibility-report-manager:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Manage compatibility report
+        uses: actions/github-script@main
+        with:
+          script: |
+            "use strict";
+
+            // REMOVEME  v
+            if (context.actor != "Margen67") {
+              process.exit(1);
+            }
+            // REMOVEME  ^
+
+            const title = context.payload.issue?.title || context.payload.pull_request?.title;
+            const titleIsReport = /^[0-9A-F]{8} - \S+(?:.*\S)?$/.test(title);
+            const body = context.payload.issue?.body || context.payload.pull_request?.body;
+
+            let reportIsValid = true;
+            let reportIsDuplicate = false;
+            let reportLabels = [];
+            let commentCloseBody = "";
+            function compatibilityReportInvalidate(reason) {
+              console.log(reason);
+              reportIsValid = false;
+              commentCloseBody += `\n  * ${reason}`;
+            }
+
+            let eventNameFriendly = "";
+            switch (context.eventName) {
+              case "issues":
+                eventNameFriendly = "issue";
+                if (titleIsReport) {
+                  console.log(`Title is valid: \(${title}\)`);
+                } else {
+                  compatibilityReportInvalidate(`Title is invalid: \(${title}\)`);
+                }
+
+                console.log("TODO: Check if report is a duplicate");
+
+                const reportCommitHash = body.match(/(?<=### Xenia Canary version\n\n)https:\/\/github.com\/xenia-canary\/xenia-canary\/commit\/[0-9a-f]{5,40}\/?(?=\n)/);
+                if (reportCommitHash) {
+                  console.log(`Commit hash is valid: ${reportCommitHash}`);
+                } else {
+                  compatibilityReportInvalidate("Commit hash is invalid.");
+                }
+
+                // ?.[0] = only save the matching string
+                const reportLabelsRaw = body.match(/(?<=### Labels\n\n).+$/)?.[0];
+                // REMOVEME  v
+                console.log(`reportLabelsRaw: ${reportLabelsRaw}`);
+                // REMOVEME  ^
+                if (reportLabelsRaw) {
+                  // REMOVEME  v
+                  console.log(`reportLabels before push: ${reportLabels}`);
+                  // REMOVEME  ^
+                  reportLabels.push(...reportLabelsRaw.split(/ *(?: - |[ +&*,\/\\:;|]) */g));
+                  // REMOVEME  v
+                  console.log(`reportLabels after push: ${reportLabels}`);
+                  // REMOVEME  ^
+                  if (reportLabels) {
+                    if (reportLabels.length > 50) {
+                      compatibilityReportInvalidate("Too many labels. Something went wrong or there aren't any labels.");
+                    } else {
+                      const invalidLabels = ["issue-invalid", "issue-duplicate", "issue-superseded", "issue-cluttered"];
+                      const reportStateLabelCount = (reportLabelsRaw.match(/state-/g) || []).length;
+                      if (reportStateLabelCount === 1) {
+                        console.log("At least one state label was provided.");
+                      } else if (reportStateLabelCount > 1) {
+                        compatibilityReportInvalidate("There should only be one state label.");
+                      } else {
+                        compatibilityReportInvalidate("There should be at least one state label.");
+                      }
+                      console.log("TODO: Check if labels are valid");
+                    }
+                  } else {
+                    compatibilityReportInvalidate("Labels are invalid.");
+                  }
+                } else {
+                  compatibilityReportInvalidate("Labels are invalid.");
+                }
+
+                break;
+              case "pull_request":
+                eventNameFriendly = "pull request";
+                if (titleIsReport) {
+                  compatibilityReportInvalidate("Compatibility reports can't be pull requests.");
+                } else {
+                  console.log("Pull request probably isn't a compatibility report.");
+                }
+                break;
+            }
+
+            if (reportIsValid) {
+              console.log(`${eventNameFriendly} is probably valid.`);
+            } else {
+              commentCloseBody = `@${context.payload.sender.login} your ${eventNameFriendly} was automatically closed because it didn't follow the [issue/report guidelines](https://github.com/xenia-project/game-compatibility#reportissue-guidelines).\nHere's what's wrong with your compatibility report:` + commentCloseBody;
+              commentCloseBody += `\n\n**Don't submit a new ${eventNameFriendly}.**`;
+              if (context.eventName == "issues") {
+                commentCloseBody += ` Just edit this one and if it's valid it will be reopened.`;
+              }
+              commentCloseBody += `\n\nIf you want help with Xenia and/or your game go to our Discord server's #help channel: https://discord.gg/Q9mxZf9`
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: commentCloseBody
+              });
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                state: "closed",
+                state_reason: "not_planned"
+              });
+              console.log("reportLabels type: " + typeof reportLabels);
+              console.log(`reportLabels: ${reportLabels}`);
+              // Clear labels
+              reportLabels.length = 0;
+              reportLabels.push("issue-invalid");
+              if (reportIsDuplicate) {
+                reportLabels.push("issue-duplicate");
+              }
+            }
+
+            // There are cases where we don't want labels added;
+            //   * Issues that were edited, but not closed
+            //   * Valid pull requests
+            if (reportLabels) {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                labels: reportLabels
+              });
+            }
+
+#        env:
+#          issue_labels: ${{ join(github.event.issue.labels.*.name) }}
+#          issue_state: ${{ github.event.issue.state }}
+##          issue_comment_author: ${{ github.event.comment.user.login }}
+##          issue_comment_body: ${{ github.event.comment.body }}
+#          pull_request_number: ${{ github.event.pull_request.number }}
+#          pull_request_author: ${{ github.event.pull_request.user.login }}
+#        run: ./compatibility-report-manager.sh
