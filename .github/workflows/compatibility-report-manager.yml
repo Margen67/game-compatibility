@@ -59,22 +59,18 @@ jobs:
 
                 // ?.[0] = only save the matching string
                 const reportLabelsRaw = body.match(/(?<=### Labels\n\n).+$/)?.[0];
-                // REMOVEME  v
-                console.log(`reportLabelsRaw: ${reportLabelsRaw}`);
-                // REMOVEME  ^
                 if (reportLabelsRaw) {
-                  // REMOVEME  v
-                  console.log(`reportLabels before push: ${reportLabels}`);
-                  // REMOVEME  ^
+                  // Debug
+                  console.log(`reportLabelsRaw: ${reportLabelsRaw}`);
                   reportLabels.push(...reportLabelsRaw.split(/ *(?: - |[ +&*,\/\\:;|]) */g));
-                  // REMOVEME  v
-                  console.log(`reportLabels after push: ${reportLabels}`);
-                  // REMOVEME  ^
                   if (reportLabels) {
+                    // Debug
+                    console.log(`reportLabels: ${reportLabels}`);
                     if (reportLabels.length > 50) {
                       compatibilityReportInvalidate("Too many labels. Something went wrong or there aren't any labels.");
                     } else {
                       const invalidLabels = ["issue-invalid", "issue-duplicate", "issue-superseded", "issue-cluttered"];
+                      // Validity of the state label is checked elsewhere
                       const reportStateLabelCount = (reportLabelsRaw.match(/state-/g) || []).length;
                       if (reportStateLabelCount === 1) {
                         console.log("At least one state label was provided.");
@@ -83,7 +79,9 @@ jobs:
                       } else {
                         compatibilityReportInvalidate("There should be at least one state label.");
                       }
+
                       console.log("TODO: Check if labels are valid");
+
                     }
                   } else {
                     compatibilityReportInvalidate("Labels are invalid.");
@@ -111,7 +109,7 @@ jobs:
               if (context.eventName == "issues") {
                 commentCloseBody += ` Just edit this one and if it's valid it will be reopened.`;
               }
-              commentCloseBody += `\n\nIf you want help with Xenia and/or your game go to our Discord server's #help channel: https://discord.gg/Q9mxZf9`
+              commentCloseBody += `\n\nIf you want help with Xenia or your game go to our Discord server's #help channel: https://discord.gg/Q9mxZf9`;
               await github.rest.issues.createComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
@@ -135,7 +133,7 @@ jobs:
               }
             }
 
-            // There are cases where we don't want labels added;
+            // There are cases where labels aren't added;
             //   * Issues that were edited, but not closed
             //   * Valid pull requests
             if (reportLabels) {
