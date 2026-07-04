@@ -1,4 +1,4 @@
-name: Compatibility Report Manager
+#name: Compatibility Report Manager
 
 on:
   issues:
@@ -10,12 +10,13 @@ on:
 
 jobs:
   compatibility-report-manager:
+    name: Compatibility Report Manager
     runs-on: ubuntu-latest
     steps:
       - name: Manage compatibility report
         uses: actions/github-script@main
         with:
-          script: |
+          script: |-
             "use strict";
 
             // REMOVEME  v
@@ -123,8 +124,6 @@ jobs:
                 state: "closed",
                 state_reason: "not_planned"
               });
-              console.log("reportLabels type: " + typeof reportLabels);
-              console.log(`reportLabels: ${reportLabels}`);
               // Clear labels
               reportLabels.length = 0;
               reportLabels.push("issue-invalid");
